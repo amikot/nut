@@ -70,6 +70,10 @@ static USBDevice_t usbdevice;
 static USBDeviceMatcher_t *reopen_matcher = NULL;
 static USBDeviceMatcher_t *regex_matcher = NULL;
 
+/* Flag for estimation of battery.runtime and battery.charge */
+static int localcalculation = 0;
+static int localcalculation_logged = 0;
+
 static int (*subdriver_command)(uint8_t *cmd, uint8_t *buf, uint16_t length, uint16_t buflen) = NULL;
 
 static void ussleep(useconds_t usec)
@@ -833,7 +837,7 @@ void upsdrv_help(void)
 
 void upsdrv_makevartable(void)
 {
-
+	addvar(VAR_FLAG, "localcalculation", "Calculate battery charge and runtime locally");
 }
 
 void upsdrv_initups(void)
@@ -938,6 +942,13 @@ void upsdrv_initinfo(void)
 		fatalx(EXIT_FAILURE, "Bad checksum or NACK");
 	else
 		upsdebugx(2, "Communication with UPS established");
+
+	if (testvar("localcalculation")) {
+		localcalculation = 1;
+		upsdebugx(1, "Will guesstimate battery charge and runtime "
+			"instead of trusting device readings (if any)");
+	}
+	dstate_setinfo("driver.parameter.localcalculation", "%d", localcalculation);
 
 	riello_parse_gi(&bufIn[0], &DevData);
 
@@ -1045,6 +1056,9 @@ void upsdrv_updateinfo(void)
 	uint8_t getextendedOK;
 	static int countlost = 0;
 	int stat;
+	int battcharge;
+	float battruntime;
+	float upsloadfactor;
 
 	upsdebugx(1, "countlost %d",countlost);
 
@@ -1079,14 +1093,37 @@ void upsdrv_updateinfo(void)
 	dstate_setinfo("input.bypass.frequency", "%.2f", DevData.Fbypass/10.0);
 	dstate_setinfo("output.frequency", "%.2f", DevData.Fout/10.0);
 	dstate_setinfo("battery.voltage", "%.1f", DevData.Ubat/10.0);
-	if ((DevData.BatCap < 0xFFFF) &&  (DevData.BatTime < 0xFFFF)) {
-		dstate_setinfo("battery.charge", "%u", DevData.BatCap);
-		dstate_setinfo("battery.runtime", "%u", DevData.BatTime*60);
+	if (localcalculation) {
+		battcharge = ((DevData.Ubat <= 129) && (DevData.Ubat >=107)) ? (((DevData.Ubat-107)*100)/22) : ((DevData.Ubat < 107) ? 0 : 100);
+		battruntime = (DevData.NomBatCap * DevData.NomUbat * 3600.0/DevData.NomPowerKW) * (battcharge/100.0);
+		upsloadfactor = (DevData.Pout1 > 0) ? (DevData.Pout1/100.0) : 1;
+
+		dstate_setinfo("battery.charge", "%u", battcharge);
+		dstate_setinfo("battery.runtime", "%.0f", battruntime/upsloadfactor);
+	}
+	else {
+		if (!localcalculation_logged) {
+			upsdebugx(0, "\nIf you don't see values for battery.charge and "
+				"battery.runtime or values are incorrect,"
+				"try setting \"localcalculation\" flag in \"ups.conf\" "
+				"options section for this driver!\n");
+			localcalculation_logged = 1;
+		}
+		if ((DevData.BatCap < 0xFFFF) && (DevData.BatTime < 0xFFFF)) {
+			dstate_setinfo("battery.charge", "%u", DevData.BatCap);
+			dstate_setinfo("battery.runtime", "%u", DevData.BatTime*60);
+		}
 	}
 
-	if (DevData.Tsystem < 0xFF)
+	if (DevData.Tsystem == 255) {
+		/*dstate_setinfo("ups.temperature", "%u", 0);*/
+		upsdebugx(4, "Reported temperature value is 0xFF, "
+			"probably meaning \"-1\" for error or "
+			"missing sensor - ignored");
+	}
+	else if (DevData.Tsystem < 0xFF) {
 		dstate_setinfo("ups.temperature", "%u", DevData.Tsystem);
-
+	}
 
 	if (input_monophase) {
 		dstate_setinfo("input.voltage", "%u", DevData.Uinp1);

@@ -1,4 +1,4 @@
-personal_ws-1.1 en 3043 utf-8
+personal_ws-1.1 en 3046 utf-8
 AAS
 ABI
 ACFAIL
@@ -383,6 +383,7 @@ Fuß
 GCCVER
 GES
 GETADDRINFO
+GID
 GKrellM
 GND
 GPL
@@ -1965,8 +1966,10 @@ hunnox
 hypervisor
 hypervisors
 iBox
+iDialog
 iDowell
 iManufacturer
+iPlug
 iSerial
 iUSB
 ib
@@ -2141,6 +2144,7 @@ lk
 lm
 ln
 loadPercentage
+localcalculation
 localhost
 localtime
 lockf
