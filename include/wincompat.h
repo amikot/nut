@@ -95,8 +95,12 @@ int sktclose(int fh);
  */
 const char* inet_ntop(int af, const void* src, char* dst, int cnt);
 # else
-const char* inet_ntop(int af, const void* src, char* dst, size_t cnt);
+const char* inet_ntop(int af, const void* src, char* dst, size_t /* socklen_t */ cnt);
 # endif
+#endif
+
+#if ! HAVE_INET_PTON
+int inet_pton(int af, const char *src, void *dst);
 #endif
 
 /* from the MSDN getaddrinfo documentation : */
@@ -345,12 +349,5 @@ speed_t cfgetospeed(const struct termios *t);
 #define TIOCM_RNG	MS_RING_ON /*0x0040*/
 #define TIOCM_RI	TIOCM_RNG /* at least that's the definition in Linux */
 #define TIOCM_CD	MS_RLSD_ON /*0x0080*/
-
-#if !defined(PATH_MAX) && defined(MAX_PATH)
-/* PATH_MAX is the POSIX equivalent for Microsoft's MAX_PATH
- * both should be defined in (mingw) limits.h
- */
-# define PATH_MAX MAX_PATH
-#endif
 
 #endif /* NUT_WINCOMPAT_H */

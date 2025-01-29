@@ -1,5 +1,16 @@
 # Network UPS Tools: clients
+
+# Export certain values for ccache which NUT ci_build.sh can customize,
+# to facilitate developer iteration re-runs of "make" later.
+# At least GNU and BSD make implementations are okay with this syntax.
+@NUT_AM_MAKE_CAN_EXPORT@@NUT_AM_EXPORT_CCACHE_NAMESPACE@export CCACHE_NAMESPACE=@CCACHE_NAMESPACE@
+@NUT_AM_MAKE_CAN_EXPORT@@NUT_AM_EXPORT_CCACHE_BASEDIR@export CCACHE_BASEDIR=@CCACHE_BASEDIR@
+@NUT_AM_MAKE_CAN_EXPORT@@NUT_AM_EXPORT_CCACHE_DIR@export CCACHE_DIR=@CCACHE_DIR@
+@NUT_AM_MAKE_CAN_EXPORT@@NUT_AM_EXPORT_CCACHE_PATH@export CCACHE_PATH=@CCACHE_PATH@
+@NUT_AM_MAKE_CAN_EXPORT@@NUT_AM_EXPORT_CCACHE_PATH@export PATH=@PATH_DURING_CONFIGURE@
+
 EXTRA_DIST =
+CLEANFILES =
 
 # nutclient.cpp for some legacy reason (maybe initial detached development?)
 # optionally includes "common.h" with the NUT build setup - and this option
@@ -10,13 +21,21 @@ AM_CXXFLAGS = -DHAVE_NUTCOMMON=1 -I$(top_srcdir)/include
 $(top_builddir)/common/libcommon.la \
 $(top_builddir)/common/libcommonclient.la \
 $(top_builddir)/common/libparseconf.la: dummy
-	@cd $(@D) && $(MAKE) $(AM_MAKEFLAGS) $(@F)
+	+@cd $(@D) && $(MAKE) $(AM_MAKEFLAGS) $(@F)
 
-# by default, link programs in this directory with libcommon.a
-LDADD = $(top_builddir)/common/libcommon.la libupsclient.la $(NETLIBS)
+LDADD_FULL = $(top_builddir)/common/libcommon.la libupsclient.la $(NETLIBS)
 if WITH_SSL
-  LDADD += $(LIBSSL_LIBS)
+  LDADD_FULL += $(LIBSSL_LIBS) $(LIBSSL_LDFLAGS_RPATH)
 endif
+
+LDADD_CLIENT = $(top_builddir)/common/libcommonclient.la libupsclient.la $(NETLIBS)
+if WITH_SSL
+  LDADD_CLIENT += $(LIBSSL_LIBS) $(LIBSSL_LDFLAGS_RPATH)
+endif
+
+# by default, link programs in this directory with
+# the more compact libcommonclient.a bundle
+LDADD = $(LDADD_CLIENT)
 
 # Avoid per-target CFLAGS, because this will prevent re-use of object
 # files. In any case, CFLAGS are only -I options, so there is no harm,
@@ -60,13 +79,15 @@ upsc_SOURCES = upsc.c upsclient.h
 upscmd_SOURCES = upscmd.c upsclient.h
 upsrw_SOURCES = upsrw.c upsclient.h
 upslog_SOURCES = upslog.c upsclient.h upslog.h
+upslog_LDADD = $(LDADD_FULL)
 upsmon_SOURCES = upsmon.c upsmon.h upsclient.h
+upsmon_LDADD = $(LDADD_FULL)
 if HAVE_WINDOWS_SOCKETS
 message_SOURCES = message.c
 endif
 
 upssched_SOURCES = upssched.c upssched.h
-upssched_LDADD = $(top_builddir)/common/libcommon.la $(top_builddir)/common/libparseconf.la $(NETLIBS)
+upssched_LDADD = $(top_builddir)/common/libcommonclient.la $(top_builddir)/common/libparseconf.la $(NETLIBS)
 
 upsimage_cgi_SOURCES = upsimage.c upsclient.h upsimagearg.h cgilib.c cgilib.h
 upsimage_cgi_LDADD = $(LDADD) $(LIBGD_LDFLAGS)
@@ -82,7 +103,7 @@ if HAVE_WINDOWS_SOCKETS
   libupsclient_la_LIBADD += -lws2_32
 endif
 if WITH_SSL
-  libupsclient_la_LIBADD += $(LIBSSL_LIBS)
+  libupsclient_la_LIBADD += $(LIBSSL_LDFLAGS_RPATH) $(LIBSSL_LIBS)
 endif
 
 # Below we set API versions of public libraries
@@ -91,17 +112,42 @@ endif
 # object .so names would differ)
 
 # libupsclient version information
-libupsclient_la_LDFLAGS = -version-info 6:0:0
+libupsclient_la_LDFLAGS = -version-info 6:1:0
 libupsclient_la_LDFLAGS += -export-symbols-regex ^upscli_
 if HAVE_WINDOWS
   # Many versions of MingW seem to fail to build non-static DLL without this
   libupsclient_la_LDFLAGS += -no-undefined
 endif
 
+# ./clients/libupsclient.la samples (partial!) on...
+# Linux:
+#   # The name that we can dlopen(3).
+#   dlname='libupsclient.so.6'
+#   # Names of this library.
+#   library_names='libupsclient.so.6.0.1 libupsclient.so.6 libupsclient.so'
+#   # Directory that this library needs to be installed in:
+#   libdir='/usr/local/ups/lib'
+# WIN32:
+#   dlname='libupsclient-6.dll'
+#   library_names='libupsclient.dll.a'
+#   libdir='//lib'
+CLEANFILES += libupsclient-version.h
+libupsclient-version.h: libupsclient.la
+	@dlname_filter() { sed -e 's/^[^=]*=//' -e 's/^"\(.*\)"$$/\1/' -e 's/^'"'"'\(.*\)'"'"'$$/\1/' ; }; \
+	 SOFILE_LIBUPSCLIENT="`grep -E '^dlname' '$?' | dlname_filter`" \
+	 || SOFILE_LIBUPSCLIENT="" ; \
+	 if [ x"$${SOFILE_LIBUPSCLIENT-}" = x ] ; then \
+	    printf "#ifdef SOFILE_LIBUPSCLIENT\n# undef SOFILE_LIBUPSCLIENT\n#endif\n\n" ; \
+	    printf "#ifdef SOPATH_LIBUPSCLIENT\n# undef SOPATH_LIBUPSCLIENT\n#endif\n\n" ; \
+	 else \
+	    printf "#ifndef SOFILE_LIBUPSCLIENT\n# define SOFILE_LIBUPSCLIENT \"%s\"\n#endif\n\n" "$${SOFILE_LIBUPSCLIENT}" ; \
+	    printf "#ifndef SOPATH_LIBUPSCLIENT\n# define SOPATH_LIBUPSCLIENT \"%s/%s\"\n#endif\n\n" "@LIBDIR@" "$${SOFILE_LIBUPSCLIENT}" ; \
+	 fi > "$@"
+
 if HAVE_CXX11
 # libnutclient version information and build
 libnutclient_la_SOURCES = nutclient.h nutclient.cpp
-libnutclient_la_LDFLAGS = -version-info 2:1:0
+libnutclient_la_LDFLAGS = -version-info 2:2:0
 # Needed in not-standalone builds with -DHAVE_NUTCOMMON=1
 # which is defined for in-tree CXX builds above:
 libnutclient_la_LIBADD = $(top_builddir)/common/libcommonclient.la
@@ -116,7 +162,7 @@ endif
 if HAVE_CXX11
 # libnutclientstub version information and build
 libnutclientstub_la_SOURCES = nutclientmem.h nutclientmem.cpp
-libnutclientstub_la_LDFLAGS = -version-info 1:0:0
+libnutclientstub_la_LDFLAGS = -version-info 1:1:0
 libnutclientstub_la_LIBADD = libnutclient.la
 if HAVE_WINDOWS
   # Many versions of MingW seem to fail to build non-static DLL without this
@@ -133,4 +179,4 @@ MAINTAINERCLEANFILES = Makefile.in .dirstamp
 # NOTE: Do not clean ".deps" in SUBDIRS of the main project,
 # the root Makefile.am takes care of that!
 #clean-local:
-#	rm -rf $(builddir)/.deps
+#	$(AM_V_at)rm -rf $(builddir)/.deps

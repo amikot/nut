@@ -3,6 +3,7 @@
    Copyright (C)
 	2002	Russell Kroll <rkroll@exploits.org>
 	2008	Arjen de Korte <adkorte-guest@alioth.debian.org>
+	2020 - 2025	Jim Klimov <jimklimov+nut@gmail.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -61,25 +62,25 @@
 
 /* WA for Solaris/i386 bug: non-blocking connect sets errno to ENOENT */
 #if (defined NUT_PLATFORM_SOLARIS)
-	#define SOLARIS_i386_NBCONNECT_ENOENT(status) ( (!strcmp("i386", CPU_TYPE)) ? (ENOENT == (status)) : 0 )
+#	define SOLARIS_i386_NBCONNECT_ENOENT(status) ( (!strcmp("i386", CPU_TYPE)) ? (ENOENT == (status)) : 0 )
 #else
-	#define SOLARIS_i386_NBCONNECT_ENOENT(status) (0)
+#	define SOLARIS_i386_NBCONNECT_ENOENT(status) (0)
 #endif  /* end of Solaris/i386 WA for non-blocking connect */
 
 /* WA for AIX bug: non-blocking connect sets errno to 0 */
 #if (defined NUT_PLATFORM_AIX)
-	#define AIX_NBCONNECT_0(status) (0 == (status))
+#	define AIX_NBCONNECT_0(status) (0 == (status))
 #else
-	#define AIX_NBCONNECT_0(status) (0)
+#	define AIX_NBCONNECT_0(status) (0)
 #endif  /* end of AIX WA for non-blocking connect */
 
 #ifdef WITH_NSS
-	#include <prerror.h>
-	#include <prinit.h>
-	#include <pk11func.h>
-	#include <prtypes.h>
-	#include <ssl.h>
-	#include <private/pprio.h>
+#	include <prerror.h>
+#	include <prinit.h>
+#	include <pk11func.h>
+#	include <prtypes.h>
+#	include <ssl.h>
+#	include <private/pprio.h>
 #endif /* WITH_NSS */
 
 #define UPSCLIENT_MAGIC 0x19980308
@@ -329,6 +330,7 @@ static void HandshakeCallback(PRFileDesc *fd, UPSCONN_t *client_data)
 int upscli_init(int certverify, const char *certpath,
 					const char *certname, const char *certpasswd)
 {
+	const char *quiet_init_ssl;
 #ifdef WITH_OPENSSL
 	long ret;
 	int ssl_mode = SSL_VERIFY_NONE;
@@ -343,7 +345,7 @@ int upscli_init(int certverify, const char *certpath,
 	NUT_UNUSED_VARIABLE(certpasswd);
 #endif /* WITH_OPENSSL | WITH_NSS */
 
-	const char *quiet_init_ssl = getenv("NUT_QUIET_INIT_SSL");
+	quiet_init_ssl = getenv("NUT_QUIET_INIT_SSL");
 	if (quiet_init_ssl != NULL) {
 		if (*quiet_init_ssl == '\0'
 			|| (strncmp(quiet_init_ssl, "true", 4)
@@ -618,6 +620,9 @@ const char *upscli_strerror(UPSCONN_t *ups)
 			upscli_errlist[ups->upserror].str,
 			ups->pc_ctx.errmsg);
 		return ups->errbuf;
+
+	default:
+		break;
 	}
 
 #ifdef HAVE_PRAGMAS_FOR_GCC_DIAGNOSTIC_IGNORED_FORMAT_NONLITERAL
@@ -678,8 +683,9 @@ static ssize_t net_read(UPSCONN_t *ups, char *buf, size_t buflen, const time_t t
 		 * 32-bit builds)... Not likely to exceed in 64-bit builds,
 		 * but smaller systems with 16-bits might be endangered :)
 		 */
+		int iret;
 		assert(buflen <= INT_MAX);
-		int iret = SSL_read(ups->ssl, buf, (int)buflen);
+		iret = SSL_read(ups->ssl, buf, (int)buflen);
 		assert(iret <= SSIZE_MAX);
 		ret = (ssize_t)iret;
 #elif defined(WITH_NSS) /* WITH_OPENSSL */
@@ -762,8 +768,9 @@ static ssize_t net_write(UPSCONN_t *ups, const char *buf, size_t buflen, const t
 		 * 32-bit builds)... Not likely to exceed in 64-bit builds,
 		 * but smaller systems with 16-bits might be endangered :)
 		 */
+		int iret;
 		assert(buflen <= INT_MAX);
-		int iret = SSL_write(ups->ssl, buf, (int)buflen);
+		iret = SSL_write(ups->ssl, buf, (int)buflen);
 		assert(iret <= SSIZE_MAX);
 		ret = (ssize_t)iret;
 #elif defined(WITH_NSS) /* WITH_OPENSSL */
@@ -906,6 +913,10 @@ static int upscli_sslinit(UPSCONN_t *ups, int verifycert)
 		return -1;
 	}
 
+#if (defined HAVE_PRAGMA_GCC_DIAGNOSTIC_PUSH_POP) && (defined HAVE_PRAGMA_GCC_DIAGNOSTIC_IGNORED_CAST_FUNCTION_TYPE_STRICT)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-function-type-strict"
+#endif
 	if (verifycert) {
 		status = SSL_AuthCertificateHook(ups->ssl,
 			(SSLAuthCertificate)AuthCertificate, CERT_GetDefaultCertDB());
@@ -935,6 +946,9 @@ static int upscli_sslinit(UPSCONN_t *ups, int verifycert)
 		nss_error("upscli_sslinit / SSL_HandshakeCallback");
 		return -1;
 	}
+#if (defined HAVE_PRAGMA_GCC_DIAGNOSTIC_PUSH_POP) && (defined HAVE_PRAGMA_GCC_DIAGNOSTIC_IGNORED_CAST_FUNCTION_TYPE_STRICT)
+#pragma GCC diagnostic pop
+#endif
 
 	cert = upscli_find_host_cert(ups->host);
 	if (cert != NULL && cert->certname != NULL) {
@@ -1014,6 +1028,7 @@ int upscli_tryconnect(UPSCONN_t *ups, const char *host, uint16_t port, int flags
 	ups->fd = -1;
 
 	if (!host) {
+		upslogx(LOG_WARNING, "%s: Host not specified", __func__);
 		ups->upserror = UPSCLI_ERR_NOSUCHHOST;
 		return -1;
 	}
@@ -1039,6 +1054,7 @@ int upscli_tryconnect(UPSCONN_t *ups, const char *host, uint16_t port, int flags
 		case EAI_AGAIN:
 			continue;
 		case EAI_NONAME:
+			upslogx(LOG_WARNING, "%s: Host not found: '%s'", __func__, NUT_STRARG(host));
 			ups->upserror = UPSCLI_ERR_NOSUCHHOST;
 			return -1;
 		case EAI_MEMORY:
@@ -1046,6 +1062,8 @@ int upscli_tryconnect(UPSCONN_t *ups, const char *host, uint16_t port, int flags
 			return -1;
 		case EAI_SYSTEM:
 			ups->syserrno = errno;
+			break;
+		default:
 			break;
 		}
 
@@ -1161,7 +1179,7 @@ int upscli_tryconnect(UPSCONN_t *ups, const char *host, uint16_t port, int flags
 
 	pconf_init(&ups->pc_ctx, NULL);
 
-	ups->host = strdup(host);
+	ups->host = xstrdup(host);
 
 	if (!ups->host) {
 		ups->upserror = UPSCLI_ERR_NOMEM;
@@ -1197,7 +1215,7 @@ int upscli_tryconnect(UPSCONN_t *ups, const char *host, uint16_t port, int flags
 		} else if (tryssl && ret == 0) {
 			if (certverify != 0) {
 				upslogx(LOG_NOTICE, "Can not connect to NUT server %s in SSL and "
-				"certificate is needed, disconnect", host);
+					"certificate is needed, disconnect", host);
 				upscli_disconnect(ups);
 				return -1;
 			}
@@ -1604,7 +1622,7 @@ ssize_t upscli_readline(UPSCONN_t *ups, char *buf, size_t buflen)
 /* split upsname[@hostname[:port]] into separate components */
 int upscli_splitname(const char *buf, char **upsname, char **hostname, uint16_t *port)
 {
-	char	*s, tmp[SMALLBUF], *last = NULL;
+	char	*sat, *ssc, tmp[SMALLBUF], *last = NULL;
 
 	/* paranoia */
 	if ((!buf) || (!upsname) || (!hostname) || (!port)) {
@@ -1616,17 +1634,42 @@ int upscli_splitname(const char *buf, char **upsname, char **hostname, uint16_t 
 		return -1;
 	}
 
-	s = strchr(tmp, '@');
+	sat = strchr(tmp, '@');
+	ssc = strchr(tmp, ':');
 
-	if ((*upsname = strdup(strtok_r(tmp, "@", &last))) == NULL) {
-		fprintf(stderr, "upscli_splitname: strdup failed\n");
+	/* someone passed a "@hostname" string? */
+	if (sat == tmp) {
+		fprintf(stderr, "upscli_splitname: got empty upsname string\n");
 		return -1;
 	}
 
+	if ((*upsname = xstrdup(strtok_r(tmp, "@", &last))) == NULL) {
+		fprintf(stderr, "upscli_splitname: xstrdup failed\n");
+		return -1;
+	}
+
+	/* someone passed a "@hostname" string (take two)? */
+	if (!**upsname) {
+		fprintf(stderr, "upscli_splitname: got empty upsname string\n");
+		return -1;
+	}
+
+/*
+	fprintf(stderr, "upscli_splitname3: got buf='%s', tmp='%s', upsname='%s', possible hostname:port='%s'\n",
+		NUT_STRARG(buf), NUT_STRARG(tmp), NUT_STRARG(*upsname), NUT_STRARG((sat ? sat+1 : sat)));
+ */
+
 	/* only a upsname is specified, fill in defaults */
-	if (s == NULL) {
-		if ((*hostname = strdup("localhost")) == NULL) {
-			fprintf(stderr, "upscli_splitname: strdup failed\n");
+	if (sat == NULL) {
+		if (ssc) {
+			/* TOTHINK: Consult isdigit(ssc+1) to shortcut
+			 *  `upsname:port` into `upsname@localhost:port`? */
+			fprintf(stderr, "upscli_splitname: port specified, but not a hostname\n");
+			return -1;
+		}
+
+		if ((*hostname = xstrdup("localhost")) == NULL) {
+			fprintf(stderr, "upscli_splitname: xstrdup failed\n");
 			return -1;
 		}
 
@@ -1634,7 +1677,13 @@ int upscli_splitname(const char *buf, char **upsname, char **hostname, uint16_t 
 		return 0;
 	}
 
-	return upscli_splitaddr(s+1, hostname, port);
+	/* someone passed a "upsname@" string? */
+	if (!(*(sat+1))) {
+		fprintf(stderr, "upscli_splitname: got the @ separator and then an empty hostname[:port] string\n");
+		return -1;
+	}
+
+	return upscli_splitaddr(sat+1, hostname, port);
 }
 
 /* split hostname[:port] into separate components */
@@ -1653,14 +1702,28 @@ int upscli_splitaddr(const char *buf, char **hostname, uint16_t *port)
 		return -1;
 	}
 
+	s = strchr(tmp, '@');
+
+	/* someone passed a "@hostname" string? */
+	if (s) {
+		fprintf(stderr, "upscli_splitaddr: wrong call? "
+			"Got upsname@hostname[:port] string where "
+			"only hostname[:port] was expected: %s\n", buf);
+		/* let it pass, but probably fail later */
+	}
+
 	if (*tmp == '[') {
+		/* NOTE: Brackets are required for colon-separated IPv6
+		 * addresses, to differentiate from a port number. For
+		 * example, `[1234:5678]:3493` would seem right.
+		 */
 		if (strchr(tmp, ']') == NULL) {
 			fprintf(stderr, "upscli_splitaddr: missing closing bracket in [domain literal]\n");
 			return -1;
 		}
 
-		if ((*hostname = strdup(strtok_r(tmp+1, "]", &last))) == NULL) {
-			fprintf(stderr, "upscli_splitaddr: strdup failed\n");
+		if ((*hostname = xstrdup(strtok_r(tmp+1, "]", &last))) == NULL) {
+			fprintf(stderr, "upscli_splitaddr: xstrdup failed\n");
 			return -1;
 		}
 
@@ -1672,8 +1735,8 @@ int upscli_splitaddr(const char *buf, char **hostname, uint16_t *port)
 	} else {
 		s = strchr(tmp, ':');
 
-		if ((*hostname = strdup(strtok_r(tmp, ":", &last))) == NULL) {
-			fprintf(stderr, "upscli_splitaddr: strdup failed\n");
+		if ((*hostname = xstrdup(strtok_r(tmp, ":", &last))) == NULL) {
+			fprintf(stderr, "upscli_splitaddr: xstrdup failed\n");
 			return -1;
 		}
 

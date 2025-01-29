@@ -11,7 +11,7 @@ SYNOPSIS
 
 *upsdrvsvcctl* -h
 
-*upsdrvsvcctl* ['OPTIONS'] {start | stop } ['ups']
+*upsdrvsvcctl* ['OPTIONS'] {start | stop | status} ['ups']
 
 DESCRIPTION
 -----------
@@ -61,12 +61,24 @@ OPTIONS
 -------
 
 *-h*::
-Display the help text.
+Display the help text, including the built-in version of the script.
+
+*-V*::
+Display the version of NUT binaries (calling *upsdrvctl -V*), which
+normally should not differ much from the built-in version of the script
+shown in help. But with custom builds everything is possible, so it may
+be useful to know.
 
 *-t*::
 Enable testing mode. Testing mode makes upsdrvsvcctl display the actions
 it would execute without actually doing them.
 
+
+*--timeout-cmd <prog>* and *--timeout-args <arg>*::
+Service management calls will be time-limited by calling the specified
+program with its args. By default, if coreutils timeout is found, it
+would be used to limit service calls by 90 sec, to avoid/work around
+certain hangs that happen in some systemd version under stress.
 
 
 OPTIONS OF UPSDRVCTL NOT (CURRENTLY) APPLICABLE TO UPSDRVSVCCTL
@@ -121,6 +133,14 @@ by using the 'maxretry' and 'retrydelay' options - see linkman:ups.conf[5].
 *stop*::
 Stop the UPS driver(s).
 
+*status*::
+Query run-time status of all configured devices (or one specified device).
+Currently defers work to linkman:upsdrvctl[8], to list known device
+configurations and their driver daemon details (PID, responsiveness,
+`ups.status`) and to linkman:nut-driver-enumerator[8] to map device
+names to service unit instances to report their names and states in
+the service management framework.
+
 *upsdrvsvcctl* also supports further operations for troubleshooting the
 mapping of NUT driver section names to the service instance names (which
 may differ due to limitations of various systems).
@@ -145,6 +165,8 @@ play around with this option.  Only use it when your systems are prepared
 to lose power.
 
 NOTE: refer to linkman:ups.conf[5] for using the *nowait* parameter.
+It can be overridden by `NUT_IGNORE_NOWAIT` environment variable
+(e.g. used to work around certain issues with systemd otherwise).
 
 ENVIRONMENT VARIABLES
 ---------------------
@@ -202,4 +224,4 @@ linkman:nut-driver-enumerator[8], linkman:ups.conf[5]
 Internet resources:
 ~~~~~~~~~~~~~~~~~~~
 
-The NUT (Network UPS Tools) home page: http://www.networkupstools.org/
+The NUT (Network UPS Tools) home page: https://www.networkupstools.org/

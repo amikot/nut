@@ -14,6 +14,12 @@ linkman:upsimage.cgi[8]) use this file to determine if they are allowed to
 talk to a host.  This keeps random visitors from using your web server
 to annoy others by creating outgoing connections.
 
+IMPORTANT NOTES
+---------------
+
+* Contents of this file should be pure ASCII (character codes
+  not in range would be ignored with a warning message).
+
 DIRECTIVES
 ----------
 
@@ -37,4 +43,4 @@ linkman:upsset.cgi[8], linkman:upsstats.cgi[8], linkman:upsimage.cgi[8]
 Internet resources:
 ~~~~~~~~~~~~~~~~~~~
 
-The NUT (Network UPS Tools) home page: http://www.networkupstools.org/
+The NUT (Network UPS Tools) home page: https://www.networkupstools.org/

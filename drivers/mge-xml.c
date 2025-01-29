@@ -510,6 +510,8 @@ static const char *mge_beeper_info(const char *arg_val)
 		return "enabled";
 	case 3:
 		return "muted";
+	default:
+		break;
 	}
 	return NULL;
 }
@@ -528,6 +530,8 @@ static const char *mge_upstype_conversion(const char *arg_val)
 		return "online - parallel with hot standy";
 	case 5:
 		return "online - hot standby redundancy";
+	default:
+		break;
 	}
 	return NULL;
 }
@@ -542,6 +546,8 @@ static const char *mge_sensitivity_info(const char *arg_val)
 		return "high";
 	case 2:
 		return "low";
+	default:
+		break;
 	}
 	return NULL;
 }
@@ -566,6 +572,8 @@ static const char *mge_test_result_info(const char *arg_val)
 		return "no test initiated";
 	case 7:
 		return "test scheduled";
+	default:
+		break;
 	}
 	return NULL;
 }
@@ -1416,6 +1424,10 @@ static int mge_xml_startelm_cb(void *userdata, int parent, const char *nspace, c
 			state = XC_BROADCAST;
 			break;
 		}
+		break;
+
+	default:
+		break;
 	}
 
 	upsdebugx(3, "%s: name <%s> (parent = %d, state = %d)", __func__, name, parent, state);
@@ -1444,6 +1456,9 @@ static int mge_xml_cdata_cb(void *userdata, int state, const char *cdata, size_t
 	case SU_OBJECT:
 	case GO_OBJECT:
 		snprintfcat(val, sizeof(val), "%.*s", (int)len, cdata);
+		break;
+
+	default:
 		break;
 	}
 
@@ -1517,6 +1532,9 @@ static int mge_xml_endelm_cb(void *userdata, int state, const char *nspace, cons
 			&inited_phaseinfo_out, &num_outphases, 0);
 
 		break;
+
+	default:
+		break;
 	}
 
 	return 0;
@@ -1537,9 +1555,9 @@ subdriver_t mge_xml_subdriver = {
 };
 
 const char *vname_nut2mge_xml(const char *name) {
-	assert(NULL != name);
-
 	size_t i = 0;
+
+	assert(NULL != name);
 
 	for (; i < sizeof(mge_xml2nut) / sizeof(xml_info_t); ++i) {
 		xml_info_t *info = mge_xml2nut + i;
@@ -1553,9 +1571,9 @@ const char *vname_nut2mge_xml(const char *name) {
 }
 
 const char *vname_mge_xml2nut(const char *name) {
-	assert(NULL != name);
-
 	size_t i = 0;
+
+	assert(NULL != name);
 
 	for (; i < sizeof(mge_xml2nut) / sizeof(xml_info_t); ++i) {
 		xml_info_t *info = mge_xml2nut + i;
@@ -1569,9 +1587,9 @@ const char *vname_mge_xml2nut(const char *name) {
 }
 
 char *vvalue_mge_xml2nut(const char *name, const char *value, size_t len) {
-	assert(NULL != name);
-
 	size_t i = 0;
+
+	assert(NULL != name);
 
 	for (; i < sizeof(mge_xml2nut) / sizeof(xml_info_t); ++i) {
 		xml_info_t *info = mge_xml2nut + i;

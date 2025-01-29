@@ -25,7 +25,7 @@ Generalities
 All configuration files within this package are parsed with a common
 state machine, which means they all can use a number of extras described here.
 
-First, most of the programs use an uppercase word to declare a
+First, most of the programs use an upper-case word to declare a
 configuration directive.  This may be something like MONITOR, NOTIFYCMD,
 or ACCESS.  The case does matter here.  "monitor" won't be recognized.
 
@@ -252,6 +252,17 @@ at its startup. This helper service should be triggered whenever your system
 (re-)starts the `nut-server` service, so that it runs against an up-to-date
 list of NUT driver processes.
 
+Two service bundles are provided for this feature: a set of
+`nut-driver-enumerator-daemon*` units starts the script as a daemon
+to regularly inspect and apply the NUT configuration to OS service unit
+wrappings (mainly intended for monitoring systems with a dynamic set of
+monitored power devices, or for systems where filesystem events monitoring
+is not a clockwork-reliable mechanism to 100% rely on); while the other
+`nut-driver-enumerator.*` units run the script once per triggering of
+the service (usually during boot-up; configuration file changes can be
+detected and propagated by systemd most of the time, but not by SMF out
+of the box).
+
 A service-oriented solution also allows to consider that different drivers
 have different dependencies -- such as that networked drivers should begin
 startup after IP addresses have been assigned, while directly-connected
@@ -295,6 +306,13 @@ want `upsd` to listen on for connections, optionally with a port number.
 	LISTEN 127.0.0.1 3493
 	LISTEN ::1 3493
 
+As a special case, `LISTEN * <port>` (with an asterisk) will try to
+listen on "ANY" IP address for both and IPv6 (`::0`) and IPv4 (`0.0.0.0`),
+subject to `upsd` command-line arguments, or system configuration or support.
+Note that if the system supports IPv4-mapped IPv6 addressing per RFC-3493,
+and does not allow to disable this mode, then there may be one listening
+socket to handle both address families.
+
 NOTE: Refer to the NUT user manual <<NUT_Security,security chapter>> for
 information on how to access and secure upsd clients connections.
 
@@ -308,6 +326,13 @@ the user you created in the preparation process.
 
 The suggested configuration is to `chown` it to `root`, `chgrp` it to the
 group you created, then make it readable by the group.
+
+NOTE: If you installed NUT from source and used `make install-as-root`,
+or if your distribution packaging did, the sample configuration files
+would have the suggested ownership and permissions assigned, so if you
+use e.g. `cp -pf upsd.users.sample upsd.users` (as `root`) to start out
+with some annotated comments and adapt that to your deployment, the
+copied files should also get the expected safe permissions.
 
 	chown root:nut upsd.conf upsd.users
 	chmod 0640 upsd.conf upsd.users
@@ -348,6 +373,16 @@ If you intentionally do not have any driver sections defined (yet)
 but still want the data server to run, respond and report zero devices
 (e.g. on an automatically managed monitoring deployment), you can enable
 the `ALLOW_NO_DEVICE true` option in the 'upsd.conf' file.
+
+NOTE: Normally `upsd` requires that at all `LISTEN` directives defined
+in the 'upsd.conf' file are honoured (except for mishaps possible with
+many names of `localhost`), and refuses to start otherwise. If you want
+to allow start-up in cases where at least one but possibly not all of
+the `LISTEN` directives were honoured, you can enable the
+`ALLOW_NOT_ALL_LISTENERS true` option in the 'upsd.conf' file.
+Note you would have to restart `upsd` to pick up the `LISTEN`ed IP address
+if it appears later, so probably configuring `LISTEN *` is a better choice
+in such cases.
 
 On operating systems with service management frameworks, the data server
 life-cycle is managed by `nut-server` service.
@@ -585,7 +620,8 @@ Reloading the data server
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Reload `upsd`.  Depending on your configuration, you may be able to
-do this without stopping the `upsd` daemon process:
+do this without stopping the `upsd` daemon process (if it had saved
+a PID file earlier):
 
 	upsd -c reload
 
@@ -596,7 +632,14 @@ If that doesn't work (check the syslog), just restart it:
 
 For systems with integrated service management (Linux systemd,
 illumos/Solaris SMF) their corresponding `reload` or `refresh`
-service actions should handle this as well.
+service actions should handle this as well. Note that such integration
+generally forgoes saving of PID files, so `upsd -c <cmd>` would not work.
+If your workflow requires to manage these daemons beside the OS provided
+framework, you can customize it to start `upsd -FF` and save the PID file.
+
+NUT releases after 2.8.0 define aliases for these units, so if your Linux
+distribution uses NUT-provided unit definitions, `systemctl reload upsd`
+may also work.
 
 NOTE: If you want to make reloading work later, see the entry in the
 link:FAQ.html[FAQ] about starting `upsd` as a different user.
@@ -623,6 +666,13 @@ Securing upsmon.conf
 The recommended setting is to have it owned by `root:nut`, then make it
 readable by the group and not by the world.  This file contains passwords
 that could be used by an attacker to start a shutdown, so keep it secure.
+
+NOTE: If you installed NUT from source and used `make install-as-root`,
+or if your distribution packaging did, the sample configuration files
+would have the suggested ownership and permissions assigned, so if you
+use e.g. `cp -pf upsmon.conf.sample upsmon.conf` (as `root`) to start out
+with some annotated comments and adapt that to your deployment, the
+copied files should also get the expected safe permissions.
 
 	chown root:nut upsmon.conf
 	chmod 0640 upsmon.conf

@@ -194,12 +194,12 @@ std::string SystemException::err()
  * https://lgtm.com/rules/2165180572/ like:
  *   NutException& operator=(NutException& rhs) = default;
  */
-NutException::~NutException() {}
-SystemException::~SystemException() {}
-IOException::~IOException() {}
-UnknownHostException::~UnknownHostException() {}
-NotConnectedException::~NotConnectedException() {}
-TimeoutException::~TimeoutException() {}
+NutException::~NutException() noexcept {}
+SystemException::~SystemException() noexcept {}
+IOException::~IOException() noexcept {}
+UnknownHostException::~UnknownHostException() noexcept {}
+NotConnectedException::~NotConnectedException() noexcept {}
+TimeoutException::~TimeoutException() noexcept {}
 
 
 namespace internal
@@ -295,7 +295,7 @@ void Socket::connect(const std::string& host, uint16_t port)
 	snprintf(sport, sizeof(sport), "%" PRIuMAX, static_cast<uintmax_t>(port));
 
 	memset(&hints, 0, sizeof(hints));
-	/* TODO? Port IPv4 vs IPv6 detail from upsclient.c */
+	/* TODO? Port IPv4 vs. IPv6 detail from upsclient.c */
 	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_protocol = IPPROTO_TCP;
@@ -1367,6 +1367,31 @@ std::vector<std::string> TcpClient::explode(const std::string& str, size_t begin
 			}
 			state = QUOTED_STRING;
 			break;
+
+#if (defined HAVE_PRAGMA_GCC_DIAGNOSTIC_PUSH_POP) && ( (defined HAVE_PRAGMA_GCC_DIAGNOSTIC_IGNORED_COVERED_SWITCH_DEFAULT) || (defined HAVE_PRAGMA_GCC_DIAGNOSTIC_IGNORED_UNREACHABLE_CODE) )
+# pragma GCC diagnostic push
+#endif
+#ifdef HAVE_PRAGMA_GCC_DIAGNOSTIC_IGNORED_COVERED_SWITCH_DEFAULT
+# pragma GCC diagnostic ignored "-Wcovered-switch-default"
+#endif
+#ifdef HAVE_PRAGMA_GCC_DIAGNOSTIC_IGNORED_UNREACHABLE_CODE
+# pragma GCC diagnostic ignored "-Wunreachable-code"
+#endif
+/* Older CLANG (e.g. clang-3.4) seems to not support the GCC pragmas above */
+#ifdef __clang__
+# pragma clang diagnostic push
+# pragma clang diagnostic ignored "-Wunreachable-code"
+# pragma clang diagnostic ignored "-Wcovered-switch-default"
+#endif
+		default:
+			/* Must not occur. */
+			break;
+#ifdef __clang__
+# pragma clang diagnostic pop
+#endif
+#if (defined HAVE_PRAGMA_GCC_DIAGNOSTIC_PUSH_POP) && ( (defined HAVE_PRAGMA_GCC_DIAGNOSTIC_IGNORED_COVERED_SWITCH_DEFAULT) || (defined HAVE_PRAGMA_GCC_DIAGNOSTIC_IGNORED_UNREACHABLE_CODE) )
+# pragma GCC diagnostic pop
+#endif
 		}
 	}
 

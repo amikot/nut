@@ -194,7 +194,7 @@ static void upsset_hosts_err(const char *errmsg)
 /* this defaults to wherever we are now, ups and function-wise */
 static void do_pickups(const char *currfunc)
 {
-	char	hostfn[SMALLBUF];
+	char	hostfn[NUT_PATH_MAX];
 	PCONF_CTX_t	ctx;
 
 	snprintf(hostfn, sizeof(hostfn), "%s/hosts.conf", confpath());
@@ -751,11 +751,12 @@ static void do_type(const char *varname)
 
 		if (!strncasecmp(answer[i], "STRING:", 7)) {
 			char	*ptr, len;
+			long	l;
 
 			/* split out the :<len> data */
 			ptr = strchr(answer[i], ':');
 			*ptr++ = '\0';
-			long l = strtol(ptr, (char **) NULL, 10);
+			l = strtol(ptr, (char **) NULL, 10);
 			assert(l <= 127);	/* FIXME: Loophole about longer numbers? Why are we limited to char at all here? */
 			len = (char)l;
 
@@ -1019,7 +1020,7 @@ static void upsset_conf_err(const char *errmsg)
 /* see if the user has confirmed their cgi directory's secure state */
 static void check_conf(void)
 {
-	char	fn[SMALLBUF];
+	char	fn[NUT_PATH_MAX];
 	PCONF_CTX_t	ctx;
 
 	snprintf(fn, sizeof(fn), "%s/upsset.conf", confpath());
